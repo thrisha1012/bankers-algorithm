@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPU Scheduling Simulator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+
+        button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            background-color: #007BFF;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        #inputFields {
+            margin-bottom: 20px;
+        }
+
+        #result {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #e0f7fa;
+            border: 1px solid #00acc1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CPU Scheduling Simulator</h1>
+        <div class="input-group">
+            <label for="numProcesses">Number of Processes:</label>
+            <input type="number" id="numProcesses" min="1" value="5">
+        </div>
+        <div class="input-group">
+            <label for="algorithm">Scheduling Algorithm:</label>
+            <select id="algorithm">
+                <option value="fcfs">FCFS</option>
+                <option value="sjf">SJF</option>
+                <option value="srtf">SRTF</option>
+                <option value="rr">Round Robin</option>
+            </select>
+        </div>
+        <div class="input-group" id="quantumGroup" style="display: none;">
+            <label for="quantum">Quantum (for Round Robin):</label>
+            <input type="number" id="quantum" min="1" value="1">
+        </div>
+        <button onclick="generateInputFields()">Generate Fields</button>
+        <form id="inputForm" onsubmit="simulateScheduling(event)">
+            <div id="inputFields"></div>
+            <button type="submit">Simulate</button>
+        </form>
+        <div id="result"></div>
+    </div>
+    <script>
+        document.getElementById('algorithm').addEventListener('change', function() {
+            const quantumGroup = document.getElementById('quantumGroup');
+            if (this.value === 'rr') {
+                quantumGroup.style.display = 'block';
+            } else {
+                quantumGroup.style.display = 'none';
+            }
+        });
+
+        function generateInputFields() {
+            const numProcesses = document.getElementById('numProcesses').value;
+            const inputFields = document.getElementById('inputFields');
+            inputFields.innerHTML = '';
+
+            for (let i = 0; i < numProcesses; i++) {
+                inputFields.innerHTML += `<h3>Process ${i}</h3>`;
+                inputFields.innerHTML += `<div class="input-group"><label for="arrival${i}">Arrival Time:</label><input type="number" id="arrival${i}" value="0"></div>`;
+                inputFields.innerHTML += `<div class="input-group"><label for="burst${i}">Burst Time:</label><input type="number" id="burst${i}" value="1"></div>`;
+            }
+        }
+
+        function simulateScheduling(event) {
+            event.preventDefault();
+            
+            const numProcesses = document.getElementById('numProcesses').value;
+            const algorithm = document.getElementById('algorithm').value;
+            let processes = [];
+
+            for (let i = 0; i < numProcesses; i++) {
+                let arrival = parseInt(document.getElementById(`arrival${i}`).value);
+                let burst = parseInt(document.getElementById(`burst${i}`).value);
+                processes.push({ id: i, arrival: arrival, burst: burst, remaining: burst });
+            }
+
+            let results = [];
+            if (algorithm === 'fcfs') {
+                results = simulateFCFS(processes);
+            } else if (algorithm === 'sjf') {
+                results = simulateSJF(processes);
+            } else if (algorithm === 'srtf') {
+                results = simulateSRTF(processes);
+            } else if (algorithm === 'rr') {
+                const quantum = parseInt(document.getElementById('quantum').value);
+                results = simulateRR(processes, quantum);
+            }
+
+            displayResults(results);
+        }
+
+        function simulateFCFS(processes) {
+            processes.sort((a, b) => a.arrival - b.arrival);
+            let currentTime = 0;
+            let results = [];
+            processes.forEach(process => {
+                let start = Math.max(currentTime, process.arrival);
+                let finish = start + process.burst;
+                results.push({ id: process.id, start: start, finish: finish });
+                currentTime = finish;
+            });
+            return results;
+        }
+
+        function simulateSJF(processes) {
+            processes.sort((a, b) => a.arrival - b.arrival || a.burst - b.burst);
+            let currentTime = 0;
+            let results = [];
+            while (processes.length > 0) {
+                let availableProcesses = processes.filter(p => p.arrival <= currentTime);
+                if (availableProcesses.length === 0) {
+                    currentTime = processes[0].arrival;
+                    availableProcesses = [processes[0]];
+                }
+                availableProcesses.sort((a, b) => a.burst - b.burst);
+                let process = availableProcesses[0];
+                let start = Math.max(currentTime, process.arrival);
+                let finish = start + process.burst;
+                results.push({ id: process.id, start: start, finish: finish });
+                currentTime = finish;
+                processes = processes.filter(p => p.id !== process.id);
+            }
+            return results;
+        }
+
+        function simulateSRTF(processes) {
+            let currentTime = 0;
+            let results = [];
+            while (processes.length > 0) {
+                let availableProcesses = processes.filter(p => p.arrival <= currentTime);
+                if (availableProcesses.length === 0) {
+                    currentTime = processes[0].arrival;
+                    availableProcesses = [processes[0]];
+                }
+                availableProcesses.sort((a, b) => a.remaining - b.remaining);
+                let process = availableProcesses[0];
+                currentTime++;
+                process.remaining--;
+                if (process.remaining === 0) {
+                    results.push({ id: process.id, start: currentTime - process.burst, finish: currentTime });
+                    processes = processes.filter(p => p.id !== process.id);
+                }
+            }
+            return results;
+        }
+
+        function simulateRR(processes, quantum) {
+            let currentTime = 0;
+            let results = [];
+            let queue = [];
+            processes.sort((a, b) => a.arrival - b.arrival);
+            let currentProcess = null;
+            while (processes.length > 0 || queue.length > 0 || currentProcess) {
+                while (processes.length > 0 && processes[0].arrival <= currentTime) {
+                    queue.push(processes.shift());
+                }
+                if (currentProcess) {
+                    queue.push(currentProcess);
+                }
+                if (queue.length > 0) {
+                    currentProcess = queue.shift();
+                    let executionTime = Math.min(quantum, currentProcess.remaining);
+                    currentProcess.remaining -= executionTime;
+                    currentTime += executionTime;
+                    if (currentProcess.remaining === 0) {
+                        results.push({ id: currentProcess.id, start: currentTime - currentProcess.burst, finish: currentTime });
+                        currentProcess = null;
+                    }
+                } else {
+                    currentTime++;
+                }
+            }
+            return results;
+        }
+
+        function displayResults(results) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `<h3>Schedule:</h3>`;
+            results.forEach(result => {
+                resultDiv.innerHTML += `Process ${result.id}: Start Time = ${result.start}, Finish Time = ${result.finish}<br>`;
+            });
+        }
+    </script>
+</body>
+</html>
